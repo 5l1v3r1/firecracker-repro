@@ -12,9 +12,9 @@ let
       ref = "rpi-5.3.y";
       rev = "32ba05a62a8071d091d7582cc37b4bac2962b1dd";
     };
-    patches = with kernelPatches; [
-      scriptconfig
-    ];
+    # patches = with kernelPatches; [
+    #   scriptconfig
+    # ];
   };
 
   config = makeConfig {
@@ -26,7 +26,6 @@ let
 in
 doKernel rec {
   inherit source config;
-  # modules = true;
   modules = false;
   dtbs = true;
 }

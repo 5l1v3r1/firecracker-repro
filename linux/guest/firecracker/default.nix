@@ -19,9 +19,7 @@ let
 in
 doKernel rec {
   inherit source config;
-  # modules = true;
   modules = false;
-  dtbs = false;
   passthru = {
     defconfig = savedefconfig {
       inherit source config;

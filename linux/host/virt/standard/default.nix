@@ -17,15 +17,10 @@ let
   config = makeConfig {
     inherit source;
     target = "defconfig";
-    # allconfig = ./defconfig;
   };
 
 in
 doKernel rec {
   inherit source config;
-  # modules = true;
   modules = false;
-  dtbs = false;
-  # dtbs = true;
 }
-
