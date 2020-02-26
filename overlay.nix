@@ -2,26 +2,26 @@ self: super: with self;
 
 {
 
-  firecracker-repro =
-    let
-      mk = config: lib.makeScope newScope (callPackage ./scope.nix {} config);
-    in {
-      virt = mk {
-        plat = "virt";
-        # host_kernel = "ubuntu";
-        host_kernel = "standard";
-        guest_kernel = "firecracker";
-      };
-      rpi4 = mk {
-        plat = "rpi4";
-        host_kernel = "ubuntu";
-        # host_kernel = "standard";
-        # guest_kernel = "firecracker";
-        guest_kernel = "standard";
-      };
-    };
+  mk_firecracker_repro = config: lib.makeScope newScope (callPackage ./scope.nix {} config);
 
-  v = firecracker-repro.virt;
-  r = firecracker-repro.rpi4;
+  firecracker_repro = lib.mapAttrs (_: mk_firecracker_repro) {
+    virt = {
+      plat = "virt";
+      # host_kernel = "ubuntu";
+      host_kernel = "standard";
+      # guest_kernel = "firecracker";
+      guest_kernel = "standard";
+    };
+    rpi4 = {
+      plat = "rpi4";
+      host_kernel = "ubuntu";
+      # host_kernel = "standard";
+      # guest_kernel = "firecracker";
+      guest_kernel = "standard";
+    };
+  };
+
+  v = firecracker_repro.virt;
+  r = firecracker_repro.rpi4;
 
 }
