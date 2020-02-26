@@ -14,8 +14,8 @@ self: super: with self;
       };
       rpi4 = mk {
         plat = "rpi4";
-        # host_kernel = "ubuntu";
-        host_kernel = "standard";
+        host_kernel = "ubuntu";
+        # host_kernel = "standard";
         guest_kernel = "firecracker";
       };
     };

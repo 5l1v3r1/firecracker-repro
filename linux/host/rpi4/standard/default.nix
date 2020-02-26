@@ -1,5 +1,4 @@
 { lib, fetchgit, linux-ng
-, linux_kernel_unified_source
 }:
 
 with linux-ng;
