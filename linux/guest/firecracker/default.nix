@@ -1,4 +1,4 @@
-{ lib, fetchgit, linux-ng
+{ lib, fetchgit, fetchFromGitHub, linux-ng
 }:
 
 with linux-ng;
@@ -14,7 +14,16 @@ let
     };
   };
 
-  config = ./firecracker.config;
+  config = "${firecracker-source}/resources/microvm-kernel-aarch64-config";
+
+  firecracker-source = fetchFromGitHub {
+    repo = "firecracker";
+    owner = "firecracker-microvm";
+    rev = "8d48e730f2ea8fe524002643912049486e07528c";
+    sha256 = "04xfzxxww0rxaf244javvx59z3541d8a9vgmvfvkysqff6lzwf89";
+  };
+
+  # config = ./firecracker.config;
 
 in
 doKernel rec {

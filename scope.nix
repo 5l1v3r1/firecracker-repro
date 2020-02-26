@@ -43,8 +43,8 @@ in
   ];
 
   guest_kernel = callPackage (./linux/guest + "/${config.guest_kernel}") {};
-  # guest_kernel_path = guest_kernel.kernel;
-  guest_kernel_path = ./tmp/linux/arch/arm64/boot/Image;
+  guest_kernel_path = guest_kernel.kernel;
+  # guest_kernel_path = ./tmp/linux/arch/arm64/boot/Image;
 
   guest_kernel_params = [
     "keep_bootcon"

@@ -5,27 +5,23 @@ with linux-ng;
 
 let
 
-  # TODO
-
   source = doSource {
-    version = "5.4.0";
-    extraVersion = "-rc8";
+    version = "5.6.0";
+    extraVersion = "-rc2";
     src = builtins.fetchGit {
-      url = https://git.research.arm.com/icecap/linux;
-      ref = "icecap-rpi";
-      rev = "d226de8664c62dcca31d228dcf04cb7b6a86d251";
+      url = https://github.com/raspberrypi/linux;
+      ref = "rpi-5.6.y";
+      rev = "9c4d22e9ec1201355491f8cd72be4c5e7f85683e";
     };
   };
 
   config = makeConfig {
     inherit source;
-    target = "alldefconfig";
-    allconfig = ./defconfig;
+    target = "defconfig";
   };
 
 in
 doKernel rec {
   inherit source config;
-  modules = true;
   dtbs = true;
 }
