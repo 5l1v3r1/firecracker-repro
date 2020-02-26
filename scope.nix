@@ -35,10 +35,12 @@ in
 
   host_kernel = callPackage (./linux/host + "/${config.plat}/${config.host_kernel}") {};
   host_kernel_path = host_kernel.kernel;
+  # host_kernel_path = ./tmp/linux/arch/arm64/boot/Image;
 
   host_kernel_params = [
     "init=${host_next_init}"
     "loglevel=7"
+    # "lamekaslr"
   ] ++ lib.optionals (config.plat == "virt") [
     "console=ttyAMA0"
   ] ++ lib.optionals (config.plat == "rpi4") [
@@ -55,7 +57,8 @@ in
 } // lib.optionalAttrs (config.plat == "virt") {
 
   links = {
-    "vmlinux" = "${host_kernel.dev}/vmlinux";
+    "host_vmlinux" = "${host_kernel.dev}/vmlinux";
+    "guest_vmlinux" = "${guest_kernel.dev}/vmlinux";
     run = run_sh;
   };
 
@@ -74,9 +77,10 @@ in
       -serial mon:stdio \
       -device virtio-9p-device,mount_tag=store,fsdev=store \
       -fsdev local,id=store,security_model=none,readonly,path=/nix/store \
-      -kernel ${host_kernel.kernel} \
+      -kernel ${host_kernel_path} \
       -initrd ${host_initramfs} \
-      -append '${lib.concatStringsSep " " host_kernel_params}'
+      -append '${lib.concatStringsSep " " host_kernel_params}' \
+      $debug
   '');
 
 } // lib.optionalAttrs (config.plat == "rpi4") {
@@ -189,8 +193,9 @@ in
 
         ln -s ${profile} /etc/profile
 
-        # for iperf
         mkdir -p /tmp
+
+        ${run_guest}
 
         setsid sh -c "ash -l </dev/$console >/dev/$console 2>/dev/$console"
       '';
@@ -296,9 +301,19 @@ in
 
 } // {
 
-  guest_kernel_params = "keep_bootcon console=ttyS0 reboot=k panic=1 pci=off loglevel=8";
+  guest_kernel_params = [
+    "keep_bootcon"
+    "console=ttyS0"
+    "reboot=k"
+    "panic=1"
+    "pci=off"
+    "loglevel=8"
+    "lamekaslr"
+  ];
+
   guest_kernel = callPackage (./linux/guest + "/${config.guest_kernel}") {};
   guest_kernel_path = guest_kernel.kernel;
+  # guest_kernel_path = ./tmp/linux/arch/arm64/boot/Image;
 
   example_kernel = pkgs.fetchurl {
     url = "https://s3.amazonaws.com/spec.ccfc.min/img/aarch64/ubuntu_with_ssh/kernel/vmlinux.bin";
@@ -329,7 +344,7 @@ in
     {
       "boot-source": {
         "kernel_image_path": "${guest_kernel_path}",
-        "boot_args": "${guest_kernel_params}",
+        "boot_args": "${lib.concatStringsSep " " guest_kernel_params}",
         "initrd_path": "${guest_initramfs}"
       },
       "machine-config": {
