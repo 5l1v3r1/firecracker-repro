@@ -1,12 +1,7 @@
-{ lib, buildPackages, runCommand, writeText
-, buildEnv
+{ lib, pkgs, buildPackages
+, runCommand, writeText, writeScript, runtimeShell, buildEnv
+, linux-ng, dtb-helpers, raspberry-pi-firmware
 , busybox
-, linux-ng
-, dtb-helpers
-, runtimeShell
-, writeScript
-, pkgs
-, raspberry-pi-firmware
 }:
 
 config:
@@ -46,6 +41,56 @@ in
   ] ++ lib.optionals (config.plat == "rpi4") [
     "console=ttyS0,115200" # NOTE firmware was silently changing ttyAMA in cmdline.txt to ttyS0 in device tree
   ];
+
+  guest_kernel = callPackage (./linux/guest + "/${config.guest_kernel}") {};
+  # guest_kernel_path = guest_kernel.kernel;
+  guest_kernel_path = ./tmp/linux/arch/arm64/boot/Image;
+
+  guest_kernel_params = [
+    "keep_bootcon"
+    "console=ttyS0"
+    "reboot=k"
+    "panic=1"
+    "pci=off"
+    "loglevel=8"
+    "lamekaslr"
+  ];
+
+  guest_initramfs = mk_initramfs {
+    extraInitCommands = ''
+      echo running
+    '';
+  };
+
+  guest_config = pkgs.writeText "config.json" ''
+    {
+      "boot-source": {
+        "kernel_image_path": "${guest_kernel_path}",
+        "boot_args": "${lib.concatStringsSep " " guest_kernel_params}",
+        "initrd_path": "${guest_initramfs}"
+      },
+      "machine-config": {
+        "vcpu_count": 1,
+        "mem_size_mib": 512
+      },
+      "drives": [
+      ],
+      "logger": {
+        "log_fifo": "/proc/self/fd/2",
+        "metrics_fifo": "metrics_fifo",
+        "level": "Debug"
+      }
+    }
+  '';
+
+  run_guest = writeScript "run-guest" ''
+    #!${runtimeShell}
+    touch metrics_fifo
+    ${firecracker-prebuilt}/bin/firecracker \
+      --seccomp-level 0 \
+      --config-file ${guest_config} \
+      --no-api
+  '';
 
   run = runCommand "run" {} ''
     mkdir $out
@@ -137,69 +182,7 @@ in
 
 } // {
 
-  host_next_init =
-    let
-      env = with pkgs; buildEnv {
-        name = "env";
-        ignoreCollisions = true;
-        paths = map (setPrio 8) [
-          acl
-          attr
-          # bashInteractive # bash with ncurses support
-          coreutils-full
-          curl
-          diffutils
-          findutils
-          gawk
-          stdenv.cc.libc
-          gnugrep
-          gnupatch
-          gnused
-          less
-          ncurses
-          netcat
-          procps
-          strace
-          su
-          time
-          utillinux
-          which # 88K size
-
-          iproute
-          iperf
-          iptables
-          nftables
-        ] ++ [
-          (setPrio 9 busybox)
-        ];
-        postBuild = ''
-          # Remove wrapped binaries, they shouldn't be accessible via PATH.
-          find $out/bin -maxdepth 1 -name ".*-wrapped" -type l -delete
-        '';
-      };
-      profile = writeText "profile" ''
-        x() {
-          ${run_guest}
-        }
-      '';
-    in
-      with pkgs; writeScript "init" ''
-        #!${runtimeShell}
-        export PATH=${env}/bin
-        export LS_COLORS=
-
-        mkdir -p /etc /bin
-        ln -s ${busybox}/bin/sh /bin/sh
-
-        ln -s ${profile} /etc/profile
-
-        mkdir -p /tmp
-
-        ${run_guest}
-
-        setsid sh -c "ash -l </dev/$console >/dev/$console 2>/dev/$console"
-      '';
-        # ${test.test}
+} // {
 
   host_initramfs =
     let
@@ -230,10 +213,7 @@ in
         fi
       '';
     in
-      # initramfs = nx.config.build.initramfs;
       mk_initramfs {
-          # modules = host_modules;
-          # loadModules = [ "genet" ];
           extraUtilsCommands = ''
             copy_bin_and_libs ${pkgs.curl.bin}/bin/curl
             copy_bin_and_libs ${pkgs.mkinitcpio-nfs-utils}/bin/ipconfig
@@ -299,66 +279,67 @@ in
           '';
         };
 
-} // {
+  host_next_init =
+    let
+      env = with pkgs; buildEnv {
+        name = "env";
+        ignoreCollisions = true;
+        paths = map (setPrio 8) [
+          acl
+          attr
+          # bashInteractive # bash with ncurses support
+          coreutils-full
+          curl
+          diffutils
+          findutils
+          gawk
+          stdenv.cc.libc
+          gnugrep
+          gnupatch
+          gnused
+          less
+          ncurses
+          netcat
+          procps
+          strace
+          su
+          time
+          utillinux
+          which # 88K size
 
-  guest_kernel_params = [
-    "keep_bootcon"
-    "console=ttyS0"
-    "reboot=k"
-    "panic=1"
-    "pci=off"
-    "loglevel=8"
-    "lamekaslr"
-  ];
+          iproute
+          iperf
+          iptables
+          nftables
+        ] ++ [
+          (setPrio 9 busybox)
+        ];
+        postBuild = ''
+          # Remove wrapped binaries, they shouldn't be accessible via PATH.
+          find $out/bin -maxdepth 1 -name ".*-wrapped" -type l -delete
+        '';
+      };
+      profile = writeText "profile" ''
+        x() {
+          ${run_guest}
+        }
+      '';
+    in
+      with pkgs; writeScript "init" ''
+        #!${runtimeShell}
+        export PATH=${env}/bin
+        export LS_COLORS=
 
-  guest_kernel = callPackage (./linux/guest + "/${config.guest_kernel}") {};
-  guest_kernel_path = guest_kernel.kernel;
-  # guest_kernel_path = ./tmp/linux/arch/arm64/boot/Image;
+        mkdir -p /etc /bin
+        ln -s ${busybox}/bin/sh /bin/sh
 
-  example_kernel = pkgs.fetchurl {
-    url = "https://s3.amazonaws.com/spec.ccfc.min/img/aarch64/ubuntu_with_ssh/kernel/vmlinux.bin";
-    sha256 = "0hmmanc0vapnylyp1gw6v25llj8q6q9vm64714fb1prx25lpajnl";
-  };
+        ln -s ${profile} /etc/profile
 
-  example_rootfs = pkgs.fetchurl {
-    url = "https://s3.amazonaws.com/spec.ccfc.min/img/aarch64/ubuntu_with_ssh/fsfiles/xenial.rootfs.ext4";
-    sha256 = "1zvr5cwhjvvhln1ld1rsc2qrhk2mv5pyvnyb094y0z5zm67llgsq";
-  };
+        mkdir -p /tmp
 
-  guest_initramfs = mk_initramfs {
-    extraInitCommands = ''
-      echo hi
-    '';
-  };
+        ${run_guest}
 
-  run_guest = writeScript "run-guest" ''
-    #!${runtimeShell}
-    touch metrics_fifo
-    ${firecracker-prebuilt}/bin/firecracker \
-      --seccomp-level 0 \
-      --config-file ${guest_config} \
-      --no-api
-  '';
-
-  guest_config = pkgs.writeText "config.json" ''
-    {
-      "boot-source": {
-        "kernel_image_path": "${guest_kernel_path}",
-        "boot_args": "${lib.concatStringsSep " " guest_kernel_params}",
-        "initrd_path": "${guest_initramfs}"
-      },
-      "machine-config": {
-        "vcpu_count": 1,
-        "mem_size_mib": 512
-      },
-      "drives": [
-      ],
-      "logger": {
-        "log_fifo": "/proc/self/fd/2",
-        "metrics_fifo": "metrics_fifo",
-        "level": "Debug"
-      }
-    }
-  '';
+        setsid sh -c "ash -l </dev/$console >/dev/$console 2>/dev/$console"
+      '';
 
 }
