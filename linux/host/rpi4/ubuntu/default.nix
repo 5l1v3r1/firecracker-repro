@@ -5,8 +5,6 @@ with linux-ng;
 
 let
 
-  # source = linux_kernel_unified_source;
-
   source = doSource {
     version = "5.3.18";
     src = builtins.fetchGit {

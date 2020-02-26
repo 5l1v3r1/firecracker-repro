@@ -33,14 +33,16 @@ in
   mk_initramfs = callPackage ./initramfs/mk-initramfs.nix {};
   mk_modules_closure = callPackage ./initramfs/mk-modules-closure.nix {};
 
-  guest_kernel = callPackage (./linux/guest + "/${config.guest_kernel}") {};
-
   host_kernel = callPackage (./linux/host + "/${config.plat}/${config.host_kernel}") {};
+  host_kernel_path = host_kernel.kernel;
 
   host_kernel_params = [
     "init=${host_next_init}"
     "loglevel=7"
+  ] ++ lib.optionals (config.plat == "virt") [
     "console=ttyAMA0"
+  ] ++ lib.optionals (config.plat == "rpi4") [
+    "console=ttyS0,115200" # NOTE firmware was silently changing ttyAMA in cmdline.txt to ttyS0 in device tree
   ];
 
   run = runCommand "run" {} ''
@@ -49,10 +51,6 @@ in
       ln -s ${v} $out/${k}
     '') links)}
   '';
-
-  # .
-
-  # linux = callPackage ./linux {};
 
 } // lib.optionalAttrs (config.plat == "virt") {
 
@@ -103,7 +101,7 @@ in
     rm $out/kernel*.img
     ln -sf ${config_txt} $out/config.txt
     ln -sf ${cmdline_txt} $out/cmdline.txt
-    ln -sf ${host_kernel} $out/kernel
+    ln -sf ${host_kernel_path} $out/kernel
     ln -sf ${host_initramfs} $out/initrd
   '';
 
