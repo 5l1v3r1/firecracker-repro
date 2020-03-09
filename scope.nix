@@ -224,6 +224,8 @@ in
             cp -pdv ${pkgs.glibc}/lib/libnss_dns*.so* $out/lib
           '';
           extraInitCommands = ''
+            ${run_guest}
+
             target_root=/mnt-root
             mkdir -p $target_root
             mount -n -t tmpfs -o nosuid,nodev,strictatime tmpfs $target_root

@@ -9,8 +9,8 @@ self: super: with self;
       plat = "virt";
       # host_kernel = "ubuntu";
       host_kernel = "standard";
-      # guest_kernel = "firecracker";
-      guest_kernel = "standard";
+      guest_kernel = "firecracker";
+      # guest_kernel = "standard";
     };
     rpi4 = {
       plat = "rpi4";
